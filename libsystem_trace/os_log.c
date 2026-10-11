@@ -140,6 +140,33 @@ _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, ui
 	free((void *)buffer_hex);
 }
 
+/*
+ * The type-specific entry points.  Apple declares these in its private
+ * os/log_private.h, and a compiler emitting os_log_error/os_log_fault/
+ * os_log_debug (or the corresponding os_log_with_type forms) calls them
+ * directly, so clients built against Apple's SDK reference them by name - e.g.
+ * DVTSystemPrerequisites references all three, and dyld stops with
+ * "Symbol not found: __os_log_debug_impl / Expected in: /usr/lib/libSystem.B.dylib".
+ *
+ * These are not stubs: each is the same implementation _os_log_impl uses, with
+ * the type the caller baked into the call.  Nothing else differs - the buffer
+ * layout, the decoder and the ASL dispatch are the shared path.
+ */
+void
+__os_log_error_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, OS_LOG_TYPE_ERROR, format, buf, size);
+}
+
+void
+__os_log_fault_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, OS_LOG_TYPE_FAULT, format, buf, size);
+}
+
+void
+__os_log_debug_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, OS_LOG_TYPE_DEBUG, format, buf, size);
+}
+
 #pragma mark Legacy Functions
 
 os_log_t _os_log_create(void *dso __unused, const char *subsystem, const char *category) {
