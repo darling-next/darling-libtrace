@@ -195,6 +195,17 @@ char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t b
 			formattedArgumentNeedsFree = false;
 			formattedArgumentLength = (size_t)maxLength;
 
+			/*
+			 * A public string argument may legitimately be a null pointer
+			 * (for example an optional C string that is absent).  printf
+			 * renders that as "(null)"; without this, strnlen() below walks
+			 * address 0 and crashes in the middle of logging.
+			 */
+			if (formattedArgument == NULL) {
+				formattedArgument = "(null)";
+				formattedArgumentLength = sizeof("(null)") - 1;
+			}
+
 			if (privacy == privacy_setting_unset) privacy = privacy_setting_private;
 		} else if (formatString[formatIndex] == 'S') {
 			uint64_t maxLength = UINT64_MAX;
@@ -221,6 +232,15 @@ char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t b
 			// technically, this is wrong; the output string will be a multi-byte string of whatever locale the system is currently using
 			// but we're kinda stuck with it because the input string *does* need to be in the current locale :/
 			// i wonder how Apple handles these in their libtrace...
+
+			if (pointer == 0) {
+				formattedArgument = "(null)";
+				formattedArgumentNeedsFree = false;
+				formattedArgumentLength = sizeof("(null)") - 1;
+				if (privacy == privacy_setting_unset) privacy = privacy_setting_private;
+				++formatIndex;
+				goto formatted_argument_ready;
+			}
 
 			wideArgument = (const wchar_t*)pointer;
 			formattedArgumentLength = wcsnrtombs(NULL, &wideArgument, maxLength, 0, &state);
@@ -360,6 +380,12 @@ char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t b
 
 		++formatIndex;
 
+		if (formattedArgument == NULL) {
+			formattedArgument = "(null)";
+			formattedArgumentLength = sizeof("(null)") - 1;
+			formattedArgumentNeedsFree = false;
+		}
+formatted_argument_ready:
 		formattedArgumentLength = strnlen(formattedArgument, formattedArgumentLength);
 
 #if OS_LOG_PRIVACY
