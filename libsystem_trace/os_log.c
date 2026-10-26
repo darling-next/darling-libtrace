@@ -151,19 +151,20 @@ _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, ui
  * These are not stubs: each is the same implementation _os_log_impl uses, with
  * the type the caller baked into the call.  Nothing else differs - the buffer
  * layout, the decoder and the ASL dispatch are the shared path.
+ * C identifiers have one leading underscore; Mach-O adds its own ABI prefix.
  */
 void
-__os_log_error_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+_os_log_error_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
 	_os_log_impl(dso, log, OS_LOG_TYPE_ERROR, format, buf, size);
 }
 
 void
-__os_log_fault_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+_os_log_fault_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
 	_os_log_impl(dso, log, OS_LOG_TYPE_FAULT, format, buf, size);
 }
 
 void
-__os_log_debug_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
+_os_log_debug_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
 	_os_log_impl(dso, log, OS_LOG_TYPE_DEBUG, format, buf, size);
 }
 
