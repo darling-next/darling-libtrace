@@ -31,6 +31,14 @@
 #include <os/object.h>
 #include <os/object_private.h>
 #include <os/log.h>
+// disable os_log privacy by default for debug builds
+#ifndef OS_LOG_PRIVACY
+	#ifdef NDEBUG
+		#define OS_LOG_PRIVACY 1
+	#else
+		#define OS_LOG_PRIVACY 0
+	#endif
+#endif
 
 struct os_log_s {
 	_OS_OBJECT_HEADER(const void *isa, ref_cnt, xref_cnt);

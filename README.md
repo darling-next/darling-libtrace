@@ -33,8 +33,13 @@ are public only when the emitted range satisfies `_dyld_is_memory_immutable`:
 dyld-owned, read-only, never-unloaded memory. Writable globals, stack/heap data,
 read-only anonymous mappings, and strings in unloadable images remain private.
 The existing dyld helper is reused; this is not a memory-permission heuristic.
-ASL output retains its build-default privacy enforcement switch.
-Registration and invocation preserve
-Block lifetime across replacement; callbacks can register a replacement without
+The message is snapshotted before invoking client code: mutating an original
+argument inside a hook does not change later copies of that same record.
+ASL output retains its build-default privacy enforcement switch. When ASL
+already enforces privacy, its decoded snapshot is shared with the hook rather
+than decoded or allocated twice.
+Invocation retains the Block across replacement as an implementation safety
+choice, not a native guarantee that callers may release their last reference
+and continue accessing captures. Callbacks can register a replacement without
 deadlocking. With no hook registered, the logging path adds no allocations,
 record construction, decoding, or mutex acquisition.

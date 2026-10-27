@@ -34,14 +34,6 @@
 #import <Foundation/NSString.h>
 #import <objc/runtime.h>
 
-// disable os_log privacy by default for debug builds
-#ifndef OS_LOG_PRIVACY
-	#ifdef NDEBUG
-		#define OS_LOG_PRIVACY 1
-	#else
-		#define OS_LOG_PRIVACY 0
-	#endif
-#endif
 
 static bool contains_attribute(char *allAttributes, char *desired) {
 	if (strcmp(allAttributes, desired) == 0) return true;

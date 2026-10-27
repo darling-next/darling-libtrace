@@ -127,16 +127,14 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 
 /*
  * Only type (byte 1), subsystem (byte 128 on the consumed x86_64 ABI), and
- * category are exposed to consumers. Other fields are private to this backend;
- * retain the original encoded arguments so copies use the shared decoder.
+ * category are exposed to consumers. Snapshot the message before client code
+ * runs: native copies do not reread mutable original argument pointers.
  */
 struct os_log_hook_message {
 	uint8_t header[128];
 	const char *subsystem;
 	const char *category;
-	const char *format;
-	uint8_t *buffer;
-	uint32_t size;
+	const char *decoded;
 };
 
 static os_unfair_lock os_log_hook_lock = OS_UNFAIR_LOCK_INIT;
@@ -170,11 +168,11 @@ os_log_hook_t os_log_set_hook(os_log_type_t type, os_log_hook_t hook) {
 
 char *os_log_copy_message_string(const void *message) {
 	const struct os_log_hook_message *record = message;
-	return os_log_decode_buffer_with_privacy(record->format, record->buffer, record->size, true);
+	return record->decoded ? strdup(record->decoded) : NULL;
 }
 
 static void os_log_call_hook(os_log_t log, os_log_type_t type,
-		const char *format, uint8_t *buffer, uint32_t size) {
+		const char *format, uint8_t *buffer, uint32_t size, const char *decoded) {
 	if (os_log_in_hook ||
 			!__atomic_load_n(&os_log_hook_installed, __ATOMIC_ACQUIRE)) return;
 	os_unfair_lock_lock(&os_log_hook_lock);
@@ -184,28 +182,36 @@ static void os_log_call_hook(os_log_t log, os_log_type_t type,
 	}
 	os_unfair_lock_unlock(&os_log_hook_lock);
 	if (!hook) return;
+	os_log_in_hook = true;
+	char *privateDecoded = NULL;
+	if (!decoded) {
+		privateDecoded = os_log_decode_buffer_with_privacy(format, buffer, size, true);
+		decoded = privateDecoded;
+	}
 	struct os_log_hook_message record = {
 		.header = { [1] = type },
 		.subsystem = log->magic == OS_LOG_MAGIC ? log->subsystem : NULL,
 		.category = log->magic == OS_LOG_MAGIC ? log->category : NULL,
-		.format = format,
-		.buffer = buffer,
-		.size = size,
+		.decoded = decoded,
 	};
-	os_log_in_hook = true;
 	hook(type, &record);
 	os_log_in_hook = false;
 	Block_release(hook);
+	free(privateDecoded);
 }
 
 void
 _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size) {
 	libtrace_precondition(log != NULL, "os_log_t cannot be NULL");
-	/* Native direct _os_log_impl calls reach hooks even for DISABLED. */
-	os_log_call_hook(log, type, format, buf, size);
-	if (log->magic == OS_LOG_DISABLED_MAGIC) return;
+	if (log->magic == OS_LOG_DISABLED_MAGIC) {
+		/* Native direct _os_log_impl calls reach hooks even for DISABLED. */
+		os_log_call_hook(log, type, format, buf, size, NULL);
+		return;
+	}
 	libtrace_precondition(log->magic == OS_LOG_DEFAULT_MAGIC || log->magic == OS_LOG_MAGIC, "Invalid os_log_t pointer parameter passed to _os_log_impl()");
 	libtrace_precondition(type >= OS_LOG_TYPE_DEFAULT && type <= OS_LOG_TYPE_FAULT, "Invalid os_log_type_t parameter passed to _os_log_impl()");
+	char *decodedBuffer = os_log_decode_buffer(format, buf, size);
+	os_log_call_hook(log, type, format, buf, size, OS_LOG_PRIVACY ? decodedBuffer : NULL);
 
 	aslmsg message = asl_new(ASL_TYPE_MSG);
 	asl_set(message, "os_log(3)", "TRUE");
@@ -244,7 +250,6 @@ _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, ui
 			libtrace_assert(false, "Invalid os_log_type_t not caught by precondition");
 	}
 
-	char *decodedBuffer = os_log_decode_buffer(format, buf, size);
 	asl_log(get_client(), message, level, "%s", decodedBuffer);
 	asl_release(message);
 	free(decodedBuffer);
