@@ -33,6 +33,9 @@ are public only when the emitted range satisfies `_dyld_is_memory_immutable`:
 dyld-owned, read-only, never-unloaded memory. Writable globals, stack/heap data,
 read-only anonymous mappings, and strings in unloadable images remain private.
 The existing dyld helper is reused; this is not a memory-permission heuristic.
+The decoder skips `{...}` annotations by advancing within the original format,
+preserving the conversion character, surrounding literal text, and later
+conversions; the encoded argument descriptor remains the privacy authority.
 The message is snapshotted before invoking client code: mutating an original
 argument inside a hook does not change later copies of that same record.
 ASL output retains its build-default privacy enforcement switch. When ASL

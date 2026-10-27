@@ -118,8 +118,9 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 		libtrace_assert(argsSeen < argCount, "Too many format specifiers in os_log string (expected %d)", argCount);
 
 		if (formatString[formatIndex] == '{') {
-			// just skip it; the buffer will tell us if it's public or private or unspecified
-			formatString = strchr(formatString + formatIndex, '}') + 1;
+			/* Keep offsets relative to the original format, including its
+			 * prefix and any later conversions. Privacy comes from the buffer. */
+			formatIndex = (size_t)(strchr(formatString + formatIndex, '}') - formatString) + 1;
 		}
 
 		// skip these, for now
