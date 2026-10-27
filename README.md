@@ -6,3 +6,8 @@ logger configuration. It returns the difference of their ranks in the order
 DEBUG, INFO, DEFAULT, ERROR, FAULT; invalid types trap. The implementation is
 based on native macOS 26.6.2 ARM64 and x86_64 code and a native valid-type
 comparison matrix, rather than the numeric ordering of `os_log_type_t`.
+
+`os_log_get_type(message)` reads the type byte at offset 1 in the opaque logging
+hook record. It does not take a logger handle, normalize unknown type bytes, or
+validate the record pointer. This layout is observed in both native architectures
+above; the remaining private record layout is intentionally not exposed.

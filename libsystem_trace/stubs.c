@@ -431,11 +431,6 @@ os_log_fmt_get_plugin(void) {
 }
 
 void
-os_log_get_type(void) {
-	_libtrace_assert_fail("os_log_get_type: Function unimplemented");
-}
-
-void
 os_log_pack_compose(void) {
 	_libtrace_assert_fail("os_log_pack_compose: Function unimplemented");
 }

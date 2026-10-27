@@ -106,6 +106,15 @@ int os_log_compare_enablement(os_log_type_t lhs, os_log_type_t rhs) {
 	return os_log_enablement_rank(lhs) - os_log_enablement_rank(rhs);
 }
 
+/*
+ * Native macOS 26.6.2 ARM64 ldrb [x0,#1] / x86_64 movzbl 1(%rdi)
+ * reads the hook record's type byte directly, without validation or a logger
+ * lookup. Keep the rest of that private record opaque.
+ */
+os_log_type_t os_log_get_type(const void *message) {
+	return ((const unsigned char *)message)[1];
+}
+
 __XNU_PRIVATE_EXTERN
 char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t bufferSize);
 __XNU_PRIVATE_EXTERN

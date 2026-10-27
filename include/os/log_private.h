@@ -15,6 +15,10 @@ void os_log_with_args(os_log_t oslog, os_log_type_t type, const char *format, va
 OS_EXPORT
 int os_log_compare_enablement(os_log_type_t lhs, os_log_type_t rhs);
 
+/* message is the opaque record supplied to a logging hook, not an os_log_t. */
+OS_EXPORT
+os_log_type_t os_log_get_type(const void *message);
+
 OS_ENUM(oslog_stream_link_type, uint8_t,
 	oslog_stream_link_type_log      = 0x0,
 	oslog_stream_link_type_metadata = 0x1,
