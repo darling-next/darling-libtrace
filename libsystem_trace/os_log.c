@@ -84,6 +84,28 @@ bool os_log_type_enabled(os_log_t log, os_log_type_t type) {
 	return true;
 }
 
+/*
+ * Native libsystem_trace (macOS 26.6.2, ARM64 and x86_64) compares log
+ * types, not logger objects: DEBUG < INFO < DEFAULT < ERROR < FAULT,
+ * returning the difference of their ranks. Invalid types trap.
+ * PureDarwin Libtrace 067c6b6156fa6ecfc0528c70944e63b86cc7d787 and the
+ * Darling/Vibe upstreams have no implementation to reuse.
+ */
+static int os_log_enablement_rank(os_log_type_t type) {
+	switch (type) {
+		case OS_LOG_TYPE_DEBUG: return 0;
+		case OS_LOG_TYPE_INFO: return 1;
+		case OS_LOG_TYPE_DEFAULT: return 2;
+		case OS_LOG_TYPE_ERROR: return 3;
+		case OS_LOG_TYPE_FAULT: return 4;
+		default: __builtin_trap();
+	}
+}
+
+int os_log_compare_enablement(os_log_type_t lhs, os_log_type_t rhs) {
+	return os_log_enablement_rank(lhs) - os_log_enablement_rank(rhs);
+}
+
 __XNU_PRIVATE_EXTERN
 char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t bufferSize);
 __XNU_PRIVATE_EXTERN
