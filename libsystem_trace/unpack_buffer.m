@@ -30,6 +30,7 @@
 #include "libtrace_assert.h"
 #include "libsbuf.h"
 #include <wchar.h>
+#include <mach-o/dyld_priv.h>
 #import <Foundation/NSString.h>
 #import <objc/runtime.h>
 
@@ -170,6 +171,7 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 		char* formattedArgument = NULL;
 		bool formattedArgumentNeedsFree = true;
 		size_t formattedArgumentLength = SIZE_MAX;
+		bool defaultCString = false;
 
 		if (formatString[formatIndex] == 's') {
 			uint64_t maxLength = SIZE_MAX;
@@ -206,7 +208,7 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 				formattedArgumentLength = sizeof("(null)") - 1;
 			}
 
-			if (privacy == privacy_setting_unset) privacy = privacy_setting_private;
+			defaultCString = privacy == privacy_setting_unset;
 		} else if (formatString[formatIndex] == 'S') {
 			uint64_t maxLength = UINT64_MAX;
 			uint64_t pointer = 0;
@@ -387,6 +389,16 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 		}
 formatted_argument_ready:
 		formattedArgumentLength = strnlen(formattedArgument, formattedArgumentLength);
+		/*
+		 * Native libsystem_trace's flatten/send path asks this exact dyld
+		 * predicate for the emitted byte range (excluding the terminator).
+		 * Read-only anonymous memory and unloadable image strings remain
+		 * private: read-only protection alone is not sufficient.
+		 */
+		if (defaultCString && enforcePrivacy) {
+			privacy = _dyld_is_memory_immutable(formattedArgument, formattedArgumentLength)
+				? privacy_setting_public : privacy_setting_private;
+		}
 
 		if (!enforcePrivacy || privacy == privacy_setting_public) {
 			sbuf_bcat(sbuf, formattedArgument, formattedArgumentLength * sizeof(char));

@@ -27,9 +27,14 @@ subsystem/category pointers. Direct `_os_log_impl` calls reach the hook even for
 the disabled logger; ordinary enabled checks still suppress disabled logging.
 
 `os_log_copy_message_string(record)` returns a separately malloc-owned string.
-It uses the existing decoder with privacy enforcement: private/default string
-arguments are redacted, public strings are rendered. ASL output retains its
-existing build-default privacy policy. Registration and invocation preserve
+It uses the existing decoder with privacy enforcement: explicit private strings
+are redacted and explicit public strings are rendered. Default `%s` arguments
+are public only when the emitted range satisfies `_dyld_is_memory_immutable`:
+dyld-owned, read-only, never-unloaded memory. Writable globals, stack/heap data,
+read-only anonymous mappings, and strings in unloadable images remain private.
+The existing dyld helper is reused; this is not a memory-permission heuristic.
+ASL output retains its build-default privacy enforcement switch.
+Registration and invocation preserve
 Block lifetime across replacement; callbacks can register a replacement without
 deadlocking. With no hook registered, the logging path adds no allocations,
 record construction, decoding, or mutex acquisition.
