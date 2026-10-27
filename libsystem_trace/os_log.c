@@ -28,8 +28,10 @@
 #include "os_log_s.h"
 #include "libtrace_assert.h"
 #include <asl.h>
-#include <os/log.h>
+#include <os/log_private.h>
 #import <os/object_private.h>
+#include <Block.h>
+#include <os/lock.h>
 
 #ifdef os_log_create
 #undef os_log_create
@@ -120,9 +122,87 @@ char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t b
 __XNU_PRIVATE_EXTERN
 const char *os_log_buffer_to_hex_string(const uint8_t *buffer, uint32_t buffer_size);
 
+__XNU_PRIVATE_EXTERN
+char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffer, uint32_t bufferSize, bool enforcePrivacy);
+
+/*
+ * Only type (byte 1), subsystem (byte 128 on the consumed x86_64 ABI), and
+ * category are exposed to consumers. Other fields are private to this backend;
+ * retain the original encoded arguments so copies use the shared decoder.
+ */
+struct os_log_hook_message {
+	uint8_t header[128];
+	const char *subsystem;
+	const char *category;
+	const char *format;
+	uint8_t *buffer;
+	uint32_t size;
+};
+
+static os_unfair_lock os_log_hook_lock = OS_UNFAIR_LOCK_INIT;
+static os_log_hook_t os_log_hook;
+static os_log_type_t os_log_hook_type;
+static bool os_log_hook_installed;
+static __thread bool os_log_in_hook;
+
+/*
+ * Native 26.6.2 copies the Block and transfers the exchanged previous Block.
+ * Its threshold is a historical minimum, with DEFAULT (zero) the unset
+ * sentinel. The lock additionally protects snapshot lifetime when a replacing
+ * caller releases the returned Block; never hold it while invoking client code.
+ */
+os_log_hook_t os_log_set_hook(os_log_type_t type, os_log_hook_t hook) {
+	if (!hook) __builtin_trap();
+	os_log_hook_t copied = Block_copy(hook);
+	if (!copied) __builtin_trap();
+	os_unfair_lock_lock(&os_log_hook_lock);
+	if (os_log_hook_type != 0 &&
+			os_log_compare_enablement(os_log_hook_type, type) < 0) {
+		type = os_log_hook_type;
+	}
+	os_log_hook_type = type;
+	os_log_hook_t previous = os_log_hook;
+	os_log_hook = copied;
+	__atomic_store_n(&os_log_hook_installed, true, __ATOMIC_RELEASE);
+	os_unfair_lock_unlock(&os_log_hook_lock);
+	return previous;
+}
+
+char *os_log_copy_message_string(const void *message) {
+	const struct os_log_hook_message *record = message;
+	return os_log_decode_buffer_with_privacy(record->format, record->buffer, record->size, true);
+}
+
+static void os_log_call_hook(os_log_t log, os_log_type_t type,
+		const char *format, uint8_t *buffer, uint32_t size) {
+	if (os_log_in_hook ||
+			!__atomic_load_n(&os_log_hook_installed, __ATOMIC_ACQUIRE)) return;
+	os_unfair_lock_lock(&os_log_hook_lock);
+	os_log_hook_t hook = NULL;
+	if (os_log_compare_enablement(type, os_log_hook_type) >= 0) {
+		hook = Block_copy(os_log_hook);
+	}
+	os_unfair_lock_unlock(&os_log_hook_lock);
+	if (!hook) return;
+	struct os_log_hook_message record = {
+		.header = { [1] = type },
+		.subsystem = log->magic == OS_LOG_MAGIC ? log->subsystem : NULL,
+		.category = log->magic == OS_LOG_MAGIC ? log->category : NULL,
+		.format = format,
+		.buffer = buffer,
+		.size = size,
+	};
+	os_log_in_hook = true;
+	hook(type, &record);
+	os_log_in_hook = false;
+	Block_release(hook);
+}
+
 void
 _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size) {
 	libtrace_precondition(log != NULL, "os_log_t cannot be NULL");
+	/* Native direct _os_log_impl calls reach hooks even for DISABLED. */
+	os_log_call_hook(log, type, format, buf, size);
 	if (log->magic == OS_LOG_DISABLED_MAGIC) return;
 	libtrace_precondition(log->magic == OS_LOG_DEFAULT_MAGIC || log->magic == OS_LOG_MAGIC, "Invalid os_log_t pointer parameter passed to _os_log_impl()");
 	libtrace_precondition(type >= OS_LOG_TYPE_DEFAULT && type <= OS_LOG_TYPE_FAULT, "Invalid os_log_type_t parameter passed to _os_log_impl()");

@@ -93,7 +93,7 @@ static bool readScalar(void* buffer, uint8_t length, uint64_t* outScalar) {
 };
 
 __XNU_PRIVATE_EXTERN
-char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t bufferSize) {
+char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffer, uint32_t bufferSize, bool enforcePrivacy) {
 	uint32_t bufferIndex = 0;
 	// uint8_t summaryByte = buffer[bufferIndex]; // not actually used, hence commented out
 	bufferIndex++;
@@ -388,15 +388,11 @@ char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t b
 formatted_argument_ready:
 		formattedArgumentLength = strnlen(formattedArgument, formattedArgumentLength);
 
-#if OS_LOG_PRIVACY
-		if (privacy == privacy_setting_public) {
-#endif
+		if (!enforcePrivacy || privacy == privacy_setting_public) {
 			sbuf_bcat(sbuf, formattedArgument, formattedArgumentLength * sizeof(char));
-#if OS_LOG_PRIVACY
 		} else {
 			sbuf_cat(sbuf, "<private>");
 		}
-#endif
 
 		if (formattedArgumentNeedsFree) {
 			free(formattedArgument);
@@ -408,6 +404,11 @@ formatted_argument_ready:
 	char *retval = strdup(sbuf_data(sbuf));
 	sbuf_delete(sbuf);
 	return retval;
+}
+
+__XNU_PRIVATE_EXTERN
+char *os_log_decode_buffer(const char *formatString, uint8_t *buffer, uint32_t bufferSize) {
+	return os_log_decode_buffer_with_privacy(formatString, buffer, bufferSize, OS_LOG_PRIVACY);
 }
 
 __XNU_PRIVATE_EXTERN

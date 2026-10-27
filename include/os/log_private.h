@@ -19,6 +19,19 @@ int os_log_compare_enablement(os_log_type_t lhs, os_log_type_t rhs);
 OS_EXPORT
 os_log_type_t os_log_get_type(const void *message);
 
+#ifdef __BLOCKS__
+/* The record is borrowed for the duration of this synchronous callback. */
+typedef void (^os_log_hook_t)(os_log_type_t type, const void *message);
+
+/* Copies hook; transfers ownership of the previous hook to the caller. */
+OS_EXPORT
+os_log_hook_t os_log_set_hook(os_log_type_t type, os_log_hook_t hook);
+#endif
+
+/* Returns a malloc-owned, privacy-redacted message string. */
+OS_EXPORT
+char *os_log_copy_message_string(const void *message);
+
 OS_ENUM(oslog_stream_link_type, uint8_t,
 	oslog_stream_link_type_log      = 0x0,
 	oslog_stream_link_type_metadata = 0x1,

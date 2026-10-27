@@ -11,3 +11,25 @@ comparison matrix, rather than the numeric ordering of `os_log_type_t`.
 hook record. It does not take a logger handle, normalize unknown type bytes, or
 validate the record pointer. This layout is observed in both native architectures
 above; the remaining private record layout is intentionally not exposed.
+
+`os_log_set_hook(type, block)` copies a nonnull Block and returns the previous
+owned Block (release it with `Block_release` when no longer needed). The first
+argument is a type threshold, not a bitmask. Native registration retains the
+lower enablement threshold across replacements, except that DEFAULT (zero)
+acts as an unset sentinel: ERROR then FAULT still receives ERROR, whereas ERROR
+then DEFAULT then FAULT receives only FAULT.
+
+Hooks run synchronously on the emitting thread, without holding the registration
+lock. Same-thread recursive logging does not invoke the hook again. The borrowed
+record has its type at byte 1 and, for the consumed x86_64 ABI, subsystem and
+category pointers at bytes 128 and 136. Default/disabled logger records have null
+subsystem/category pointers. Direct `_os_log_impl` calls reach the hook even for
+the disabled logger; ordinary enabled checks still suppress disabled logging.
+
+`os_log_copy_message_string(record)` returns a separately malloc-owned string.
+It uses the existing decoder with privacy enforcement: private/default string
+arguments are redacted, public strings are rendered. ASL output retains its
+existing build-default privacy policy. Registration and invocation preserve
+Block lifetime across replacement; callbacks can register a replacement without
+deadlocking. With no hook registered, the logging path adds no allocations,
+record construction, decoding, or mutex acquisition.
