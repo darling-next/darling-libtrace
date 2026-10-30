@@ -36,6 +36,8 @@ The existing dyld helper is reused; this is not a memory-permission heuristic.
 The decoder skips `{...}` annotations by advancing within the original format,
 preserving the conversion character, surrounding literal text, and later
 conversions; the encoded argument descriptor remains the privacy authority.
+Literal `%%` emits one percent without consuming an encoded argument, including
+when adjacent to a string conversion or when the message has no arguments.
 The message is snapshotted before invoking client code: mutating an original
 argument inside a hook does not change later copies of that same record.
 ASL output retains its build-default privacy enforcement switch. When ASL

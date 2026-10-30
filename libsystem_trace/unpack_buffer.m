@@ -108,6 +108,13 @@ char *os_log_decode_buffer_with_privacy(const char *formatString, uint8_t *buffe
 		libtrace_assert(formatString[formatIndex] == '%', "next char not % (this shouldn't happen)");
 		formatIndex++;
 
+		// A literal percent has no argument-buffer item.
+		if (formatString[formatIndex] == '%') {
+			sbuf_putc(sbuf, '%');
+			formatIndex++;
+			continue;
+		}
+
 		os_log_buffer_item_type_t itemType = buffer[bufferIndex] >> 4;
 		privacy_setting_t privacy = buffer[bufferIndex] & 0x0f;
 		++bufferIndex;
