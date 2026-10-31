@@ -257,31 +257,31 @@ _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, ui
 }
 
 /*
- * The type-specific entry points.  Apple declares these in its private
- * os/log_private.h, and a compiler emitting os_log_error/os_log_fault/
+ * The type-specific entry points have the same six-argument ABI declared in
+ * Apple's SDK os/log.h. A compiler emitting os_log_error/os_log_fault/
  * os_log_debug (or the corresponding os_log_with_type forms) calls them
  * directly, so clients built against Apple's SDK reference them by name - e.g.
  * DVTSystemPrerequisites references all three, and dyld stops with
  * "Symbol not found: __os_log_debug_impl / Expected in: /usr/lib/libSystem.B.dylib".
  *
- * These are not stubs: each is the same implementation _os_log_impl uses, with
- * the type the caller baked into the call.  Nothing else differs - the buffer
- * layout, the decoder and the ASL dispatch are the shared path.
+ * Forward the caller's explicit type just as _os_log_impl does. Omitting that
+ * argument shifts format/buffer/size and makes the decoder dereference the
+ * numeric log type as a format pointer.
  * C identifiers have one leading underscore; Mach-O adds its own ABI prefix.
  */
 void
-_os_log_error_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
-	_os_log_impl(dso, log, OS_LOG_TYPE_ERROR, format, buf, size);
+_os_log_error_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, type, format, buf, size);
 }
 
 void
-_os_log_fault_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
-	_os_log_impl(dso, log, OS_LOG_TYPE_FAULT, format, buf, size);
+_os_log_fault_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, type, format, buf, size);
 }
 
 void
-_os_log_debug_impl(void *dso, os_log_t log, const char *format, uint8_t *buf, uint32_t size) {
-	_os_log_impl(dso, log, OS_LOG_TYPE_DEBUG, format, buf, size);
+_os_log_debug_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size) {
+	_os_log_impl(dso, log, type, format, buf, size);
 }
 
 #pragma mark Legacy Functions

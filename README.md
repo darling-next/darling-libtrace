@@ -1,6 +1,12 @@
 # Libtrace
 The library implementing os_log and friends.
 
+`_os_log_debug_impl`, `_os_log_error_impl`, and `_os_log_fault_impl` use the
+same six arguments as `_os_log_impl`: DSO, logger, explicit `os_log_type_t`,
+format, encoded buffer, and buffer size. They forward the supplied type.
+This is the ABI declared by Apple's SDK `os/log.h`, including Xcode 26.3;
+the specialized symbol name does not remove the type argument.
+
 `os_log_compare_enablement(lhs, rhs)` compares log **types**, independently of
 logger configuration. It returns the difference of their ranks in the order
 DEBUG, INFO, DEFAULT, ERROR, FAULT; invalid types trap. The implementation is
